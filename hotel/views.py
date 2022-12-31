@@ -4,10 +4,23 @@ from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import HttpResponseRedirect
 from django.contrib.auth import authenticate, login
-from .models import (Amenities, Hotel)
+from .models import (Amenities, Hotel, HotelBooking)
 from django.db.models import Q
 
 # Create your views here.
+
+
+def check_booking(start_date, end_date, uid, room_count):
+    qs = HotelBooking.objects.filter(
+        start_date__lte = start_date,
+        end_date__gte = end_date,
+        hotel__uid = uid
+    )
+    
+    if len(qs) >= room_count:
+        return False
+    
+    return True
 
 
 def home(request):
@@ -37,6 +50,31 @@ def home(request):
     context = {'amenities_objs': amenities_objs, 'hotels_objs': hotels_objs, 'sort_by': sort_by, 'search': search, 'amenities': amenities}
     
     return render(request, 'home.html', context)
+
+
+def hotel_detail(request,uid):
+    hotel_obj = Hotel.objects.get(uid = uid)
+    
+    if request.method == 'POST':
+        checkin = request.POST.get('checkin')
+        checkout = request.POST.get('checkout')
+        hotel = Hotel.objects.get(uid = uid)
+        
+        if not check_booking(checkin, checkout, uid, hotel.room_count):
+            messages.warning(request, 'Hotel has been already booked in these dates')
+            return HttpResponseRedirect(request.META.get('HTTP_REFERER'))
+        
+        HotelBooking.objects.create(hotel = hotel, user = request.user, start_date = checkin, end_date = checkout,
+                                    booking_type = 'Pre Paid')
+        
+        messages.warning(request, 'Your Booking has been made ')
+        return HttpResponseRedirect(request.META.get('HTTP_REFERER'))
+    
+    
+    
+    return render(request , 'hotel_detail.html' ,{
+        'hotels_obj' :hotel_obj
+    })
 
 
 def login_page(request):   
